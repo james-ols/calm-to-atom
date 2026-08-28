@@ -141,9 +141,11 @@ def compute_parent_id(ref_no: str, all_legacy_ids: set) -> Optional[str]:
             
     return None
 
-def resolve_version(atom_version: str) -> float:
-    """Resolve the AtoM version string into a numeric value for comparison."""
-    return 2.8 if atom_version == "heratio" else float(atom_version)
+def resolve_version(atom_version: str) -> tuple:
+    """Resolve the AtoM version string into a numeric tuple for comparison."""
+    if atom_version == "heratio":
+        return (2, 8)
+    return tuple(int(p) for p in atom_version.split("."))
 
 def extract_leaf_identifier(val: str) -> str:
     """Extract just the last segment of the reference number by splitting on the strict hierarchy delimiter '/'"""
@@ -230,7 +232,7 @@ def convert_csv(input_path: str, output_path: str, mapping: Union[Dict[str, str]
                 atom_row["parentId"] = parent_id
         
         # In AtoM >= 2.3, creators and dates are events. In AtoM 2.1 and below they are creators/creatorDates.
-        if effective_version >= 2.3:
+        if effective_version >= (2, 3):
             if row.get("Date") or row.get("CreatorName"):
                 atom_row["eventTypes"] = "Creation"
         
@@ -240,7 +242,7 @@ def convert_csv(input_path: str, output_path: str, mapping: Union[Dict[str, str]
                 continue
                 
             # Adjust mappings for legacy AtoM versions (e.g. 2.1)
-            if effective_version < 2.3:
+            if effective_version < (2, 3):
                 if atom_field == "eventActors":
                     atom_field = "creators"
                 elif atom_field == "eventDates":

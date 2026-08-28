@@ -78,7 +78,7 @@ def convert_authorities(input_path: str, output_path: str, mapping: Union[Dict[s
 
     # Fallback for version grouping
     effective_version = resolve_version(atom_version)
-    target_version = "2.8" if effective_version >= 2.6 else "2.3"
+    target_version = "2.8" if effective_version >= (2, 6) else "2.3"
     target_headers = AUTHORITY_VERSIONS[target_version]
 
     logging.info(f"Reading CALM Authority data from {input_path}")

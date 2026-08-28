@@ -34,7 +34,7 @@ Migrating from CALM to AtoM requires transforming flattened custom data into str
 You can run the script directly against a CSV exported from CALM:
 
 ```bash
-# By default, it outputs a CSV for AtoM 2.8 (the current release)
+# By default, it outputs a CSV for AtoM 2.10 (the current stable release)
 python cli.py input_calm_export.csv output_atom_import.csv
 
 # Targeting an AtoM Heratio instance:
@@ -44,8 +44,9 @@ python cli.py input_calm_export.csv output_atom_import.csv --atom-version herati
 python cli.py input_calm_export.csv output_atom_import.csv --atom-version 2.3
 ```
 
-Supported `--atom-version` values: `2.8` (default), `heratio`, `2.6`, `2.3`, `2.1`. We recommend
-migrating to **AtoM 2.8 or Heratio** — the older templates are provided for archives not yet upgraded.
+Supported `--atom-version` values: `2.10` (default), `2.9`, `heratio`, `2.8`, `2.6`, `2.3`, `2.1`. We
+recommend migrating to **AtoM 2.10 (current stable) or Heratio** — the older templates are provided
+for archives not yet upgraded. (The ISAD(G) and ISAAR(CPF) CSV headers are identical across 2.8–2.10.)
 
 To see detailed logs:
 ```bash
