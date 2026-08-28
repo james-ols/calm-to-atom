@@ -27,6 +27,13 @@ Migrating from CALM to AtoM requires transforming flattened custom data into str
 - **Event Linking:** Automatically flags `eventTypes` as `Creation` when encountering `Date` or `CreatorName` for AtoM 2.3+ compatibility.
 - **Level Normalization:** Maps UK archival terms (like "Piece") to standard AtoM lowercase equivalents ("item").
 
+## Examples
+We provide a sample dataset to test the tool quickly. You can find `sample_calm.csv` and the resulting `sample_atom.csv` in the `examples/` directory.
+
+```bash
+calm2atom examples/sample_calm.csv my_atom_import.csv --atom-version 2.10 --identifier-mode leaf
+```
+
 ## Usage
 
 ### Command Line Interface (CLI)

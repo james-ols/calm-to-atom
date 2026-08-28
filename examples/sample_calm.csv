@@ -1,0 +1,4 @@
+RefNo,AltRefNo,Title,Date,Level,Description,CreatorName,Filename,AdminHistory,CustodialHistory,AccessStatus
+GB 123 TEST,,Test Collection,1900-2000,Fonds,The main test collection.,John Doe,,A prominent figure.,Kept in family.,Open
+GB 123 TEST/1,ALT-1,First Series,1950-1960,Series,A series of documents.,Jane Doe,,,Found in attic.,Closed
+GB 123 TEST/1/PP-1,,First Item,1955,Piece,A single piece of correspondence.,,scan_001.pdf,,,Open
