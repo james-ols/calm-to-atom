@@ -21,7 +21,7 @@ Once installed you can call the tool as `calm2atom …` anywhere, or run `python
 
 ## Why this tool?
 Migrating from CALM to AtoM requires transforming flattened custom data into strict ISAD(G) hierarchical structures. This tool handles the primary pain points of migration:
-- **Version-Specific Templates:** AtoM CSV templates change based on the version. This tool bundles the exact headers for AtoM `2.8`, `2.6`, `2.3`, and `2.1` and guarantees output matches the expected strict structure.
+- **Version-Specific Templates:** AtoM CSV templates change between releases. This tool bundles the exact headers for **AtoM 2.8 (the current release) and AtoM Heratio** — the versions we recommend migrating to — as well as the older `2.6`, `2.3`, and `2.1` templates, and guarantees output matches the expected strict structure. `heratio` uses the same 2.8 template.
 - **Hierarchical Linking:** Automatically calculates AtoM's required `parentId` field by analyzing your CALM `RefNo` strings (e.g., if it sees `GB 123 ABCD/1/2`, it links it to `GB 123 ABCD/1`).
 - **ISAD(G) Mapping:** Maps standard CALM fields to their strict AtoM equivalents (e.g., `AdminHistory` -> `archivalHistory`).
 - **Event Linking:** Automatically flags `eventTypes` as `Creation` when encountering `Date` or `CreatorName` for AtoM 2.3+ compatibility.
@@ -34,12 +34,18 @@ Migrating from CALM to AtoM requires transforming flattened custom data into str
 You can run the script directly against a CSV exported from CALM:
 
 ```bash
-# By default, it outputs a CSV for AtoM 2.8
+# By default, it outputs a CSV for AtoM 2.8 (the current release)
 python cli.py input_calm_export.csv output_atom_import.csv
+
+# Targeting an AtoM Heratio instance:
+python cli.py input_calm_export.csv output_atom_import.csv --atom-version heratio
 
 # If your archive is running an older AtoM version, specify it:
 python cli.py input_calm_export.csv output_atom_import.csv --atom-version 2.3
 ```
+
+Supported `--atom-version` values: `2.8` (default), `heratio`, `2.6`, `2.3`, `2.1`. We recommend
+migrating to **AtoM 2.8 or Heratio** — the older templates are provided for archives not yet upgraded.
 
 To see detailed logs:
 ```bash
