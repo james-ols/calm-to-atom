@@ -55,6 +55,10 @@ ATOM_VERSIONS = {
         "alternativeIdentifiers", "alternativeIdentifierLabels", "eventDates", "eventTypes", 
         "eventStartDates", "eventEndDates", "eventActors", "eventActorHistories", "culture"
     ],
+    # 2.9 and 2.10 headers verified identical to 2.8 via artefactual/atom stable/2.10.x
+    "2.10": [], # populated below
+    "2.9": [],
+    "heratio": [], # Heratio (by AHG) natively consumes 2.8 ISAD(G) schema
      
     "2.1": [
         "legacyId", "parentId", "accessionNumber", "qubitParentSlug", "identifier", "title",
@@ -70,6 +74,8 @@ ATOM_VERSIONS = {
         "physicalObjectLocation", "physicalObjectType", "culture"
     ]
 }
+ATOM_VERSIONS["2.10"] = ATOM_VERSIONS["2.8"]
+ATOM_VERSIONS["2.9"] = ATOM_VERSIONS["2.8"]
 ATOM_VERSIONS["heratio"] = ATOM_VERSIONS["2.8"]
 
 DEFAULT_MAPPING = {

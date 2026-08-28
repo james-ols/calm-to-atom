@@ -22,11 +22,15 @@ def test_compute_parent_id():
     assert compute_parent_id("GB 123 XYZ/1/2", legacy_ids) is None
 
 def test_atom_versions_exist():
+    assert "2.10" in ATOM_VERSIONS
+    assert "2.9" in ATOM_VERSIONS
     assert "2.8" in ATOM_VERSIONS
     assert "heratio" in ATOM_VERSIONS
     assert "2.1" in ATOM_VERSIONS
     
-    # 2.8 should have exactly 56 headers for ISAD(G)
+    # 2.8, 2.9, 2.10 should have exactly 56 headers for ISAD(G)
+    assert len(ATOM_VERSIONS["2.10"]) == 56
+    assert len(ATOM_VERSIONS["2.9"]) == 56
     assert len(ATOM_VERSIONS["2.8"]) == 56
     # 2.1 should have 53 headers
     assert len(ATOM_VERSIONS["2.1"]) == 53

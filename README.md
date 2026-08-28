@@ -21,7 +21,7 @@ Once installed you can call the tool as `calm2atom …` anywhere, or run `python
 
 ## Why this tool?
 Migrating from CALM to AtoM requires transforming flattened custom data into strict ISAD(G) hierarchical structures. This tool handles the primary pain points of migration:
-- **Version-Specific Templates:** AtoM CSV templates change between releases. This tool bundles the exact headers for **AtoM 2.8 (the current release) and AtoM Heratio** — the versions we recommend migrating to — as well as the older `2.6`, `2.3`, and `2.1` templates, and guarantees output matches the expected strict structure. `heratio` uses the same 2.8 template.
+- **Version-Specific Templates:** AtoM CSV templates change between releases. This tool bundles the exact headers for **AtoM 2.10 (the current stable release) down through older versions** — the versions we recommend migrating to — as well as the older `2.6`, `2.3`, and `2.1` templates, and guarantees output matches the expected strict structure. `heratio` uses the same 2.8 template.
 - **Hierarchical Linking:** Automatically calculates AtoM's required `parentId` field by analyzing your CALM `RefNo` strings (e.g., if it sees `GB 123 ABCD/1/2`, it links it to `GB 123 ABCD/1`).
 - **ISAD(G) Mapping:** Maps standard CALM fields to their strict AtoM equivalents (e.g., `AdminHistory` -> `archivalHistory`).
 - **Event Linking:** Automatically flags `eventTypes` as `Creation` when encountering `Date` or `CreatorName` for AtoM 2.3+ compatibility.

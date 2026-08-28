@@ -33,8 +33,8 @@ def main():
     parser.add_argument(
         "--atom-version",
         choices=list(ATOM_VERSIONS.keys()),
-        default="2.8",
-        help="Target AtoM version for the CSV template (default: 2.8)"
+        default="2.10",
+        help="Target AtoM version for the CSV template (default: 2.10)"
     )
     parser.add_argument(
         "-m", "--mapping",
