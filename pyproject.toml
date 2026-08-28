@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "calm-to-atom"
+version = "0.1.0"
+description = "CLI tool to convert Axiell CALM data to Artefactual AtoM / Heratio ISAD(G) and ISAAR(CPF) CSV formats."
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Archive Hosting UK", email = "hello@archiveshosting.co.uk"}
+]
+dependencies = [
+    "tqdm>=4.65.0"
+]
+
+[project.optional-dependencies]
+web = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+    "python-multipart>=0.0.6"
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/matthewbrutonall/calm-to-atom"
+Issues = "https://github.com/matthewbrutonall/calm-to-atom/issues"
+
+[project.scripts]
+calm2atom = "cli:main"
+
+[tool.setuptools]
+py-modules = ["core", "cli", "authorities", "web_app"]

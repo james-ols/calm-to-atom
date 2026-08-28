@@ -1,0 +1,6 @@
+# CLI requirements (none strictly required since we use stdlib csv and argparse)
+
+# Web wrapper requirements
+fastapi>=0.100.0
+uvicorn>=0.23.0
+python-multipart>=0.0.6

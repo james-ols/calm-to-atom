@@ -1,0 +1,26 @@
+{
+    "RefNo": "identifier",
+    "AltRefNo": "alternativeIdentifiers",
+    "Title": "title",
+    "Date": "eventDates",
+    "Description": "scopeAndContent",
+    "Level": "levelOfDescription",
+    "Extent": "extentAndMedium",
+    "CreatorName": "eventActors",
+    "AccessStatus": "accessConditions",
+    "ClosedUntil": "accessConditions",
+    "AdminHistory": "archivalHistory",
+    "CustodialHistory": "archivalHistory",
+    "Acquisition": "acquisition",
+    "Arrangement": "arrangement",
+    "Notes": "generalNote",
+    "RelatedMaterial": "relatedUnitsOfDescription",
+    "Language": "language",
+    "PhysicalDescription": "physicalCharacteristics",
+    "FindingAids": "findingAids",
+    "PubInNotes": "publicationNote",
+    "Rules": "rules",
+    
+    "CustomLocalField_UserText1": "generalNote",
+    "BoxNumber": "physicalObjectLocation"
+}
