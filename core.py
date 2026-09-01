@@ -151,6 +151,81 @@ def extract_leaf_identifier(val: str) -> str:
     """Extract just the last segment of the reference number by splitting on the strict hierarchy delimiter '/'"""
     return val.split("/")[-1].strip()
 
+
+# ---------------------------------------------------------------------------
+# Archon (repository) code handling
+#
+# UK archives are registered in TNA's Archon Directory with codes like
+# 'GB 166' (Shropshire Archives). ISAD(G) 3.1.1 wants the country and
+# repository codes as a prefix on the reference code, i.e. 'GB 166 XBCB/A/1'
+# instead of the bare 'XBCB/A/1'. When --prefix-archon is passed on the CLI,
+# we prepend the code to every identifier and legacyId at write time so
+# hierarchy resolution (which is calculated against the RAW RefNos) stays
+# intact.
+#
+# The fallback code 'GB 000' is deliberately invalid (no archive is
+# registered under 000) so it stands out as "please supply a real code"
+# rather than silently producing plausible-looking data.
+# ---------------------------------------------------------------------------
+ARCHON_FALLBACK = "GB 000"
+
+
+def archon_to_slug(code: str) -> str:
+    """Turn a canonical Archon code into an AtoM repository slug.
+
+    Examples:
+        'GB 166'  -> 'gb-166'
+        'GB  166' -> 'gb-166'   (tolerant of stray whitespace)
+        'GB-166'  -> 'gb-166'   (tolerant of the TNA Discovery URL form)
+        'GB 000'  -> 'gb-000'   (the fallback code)
+        ''        -> ''
+    """
+    if not code:
+        return ""
+    # Split on any whitespace or '-' so both 'GB 166' and 'GB-166' normalise
+    # to the same slug. Empty parts (from double separators) are dropped.
+    parts = [p for p in re.split(r"[\s\-]+", code) if p]
+    return "-".join(part.lower() for part in parts)
+
+
+def _resolve_effective_archon(
+    cli_archon_code: Optional[str],
+    metadata: Optional[Dict[str, Any]],
+) -> str:
+    """Choose which Archon code to use, applying the fallback if needed.
+
+    Precedence (most specific first):
+        1. --archon-code on the CLI.
+        2. archon_code carried in reader metadata (extracted from XML).
+        3. ARCHON_FALLBACK ('GB 000') — well-formed but obviously invalid,
+           so problems are visible in the AtoM import rather than silent.
+    """
+    if cli_archon_code:
+        return cli_archon_code.strip()
+    if metadata and metadata.get("archon_code"):
+        return metadata["archon_code"]
+    logging.warning(
+        "No Archon code found in input or supplied via --archon-code; "
+        "using fallback %r. Repository/identifier prefixing will still work "
+        "but the placeholder must be replaced before AtoM import.",
+        ARCHON_FALLBACK,
+    )
+    return ARCHON_FALLBACK
+
+
+def _prefix_ref(ref: str, archon_code: str) -> str:
+    """Prepend the Archon code to a reference, avoiding double-prefixing.
+
+    'GB 166' + 'XBCB/A/1'          -> 'GB 166 XBCB/A/1'
+    'GB 166' + 'GB 166 XBCB/A/1'   -> 'GB 166 XBCB/A/1'   (idempotent)
+    """
+    if not ref:
+        return ref
+    if ref.startswith(f"{archon_code} "):
+        return ref
+    return f"{archon_code} {ref}"
+
+
 def audit_data(rows: List[Dict], target_headers: List[str]) -> bool:
     """Run strict validation on the processed rows."""
     logging.info("--- RUNNING PRE-FLIGHT AUDIT ---")
@@ -185,7 +260,6 @@ def audit_data(rows: List[Dict], target_headers: List[str]) -> bool:
         return False
     return True
 
-
 def _resolve_mapping(mapping: Union[Dict[str, str], str, None]) -> Optional[Dict[str, str]]:
     """Turn the mapping argument (dict, JSON file path, or None) into a dict.
 
@@ -214,6 +288,9 @@ def convert_rows(
     audit: bool = False,
     identifier_mode: str = "full",
     metadata: Optional[Dict[str, Any]] = None,
+    prefix_archon: bool = False,
+    archon_code: Optional[str] = None,
+    repository_slug: Optional[str] = None,
 ) -> None:
     """Convert already-parsed CALM rows to an AtoM-compatible CSV.
 
@@ -229,8 +306,15 @@ def convert_rows(
     :param chunk_size: If > 0, split output into files of this many rows.
     :param audit: If True, run pre-flight validation before writing.
     :param identifier_mode: 'full' (default) or 'leaf'.
-    :param metadata: Reader-supplied export metadata (currently unused here;
-                     reserved for Step 2's Archon-code handling).
+    :param metadata: Reader-supplied export metadata (e.g. archon_code from XML).
+    :param prefix_archon: If True, prepend the Archon code to identifiers,
+                          legacyIds and parentIds. Falls back to 'GB 000' if
+                          no code can be resolved from CLI or metadata.
+    :param archon_code: Explicit Archon code (e.g. 'GB 166'). Overrides
+                        anything found in metadata.
+    :param repository_slug: Explicit AtoM repository slug (e.g. 'gb-166' or
+                            'shropshire-archives'). Overrides anything
+                            derived from the Archon code.
     """
     resolved_mapping = _resolve_mapping(mapping)
     if resolved_mapping is None:
@@ -252,6 +336,23 @@ def convert_rows(
     target_headers = ATOM_VERSIONS[atom_version]
 
     all_legacy_ids = {row.get("RefNo").strip() for row in calm_rows if row.get("RefNo")}
+
+    # Resolve the effective Archon code and repository slug up front so
+    # we can log the decision once, not per-row. Only do the resolution
+    # work if either feature is actually requested — CSV callers using
+    # neither should see no change from the pre-Step-3 behaviour.
+    effective_archon = None
+    effective_slug = repository_slug
+    if prefix_archon or archon_code or repository_slug:
+        effective_archon = _resolve_effective_archon(archon_code, metadata)
+        if not effective_slug:
+            effective_slug = archon_to_slug(effective_archon)
+        logging.info(
+            "Repository handling: archon_code=%r, slug=%r, prefix_archon=%s",
+            effective_archon,
+            effective_slug,
+            prefix_archon,
+        )
 
     logging.info(f"Converting {len(calm_rows)} rows to AtoM {atom_version} format...")
     atom_rows = []
@@ -298,6 +399,17 @@ def convert_rows(
             else:
                 atom_row[atom_field] = val
 
+        # Apply repository handling AFTER the mapping loop so parentage
+        # (computed against raw RefNos above) links correctly BEFORE we
+        # prefix identifiers.
+        if effective_slug and "repository" in target_headers:
+            atom_row["repository"] = effective_slug
+
+        if prefix_archon and effective_archon:
+            for field in ("legacyId", "identifier", "parentId"):
+                if field in atom_row and atom_row[field]:
+                    atom_row[field] = _prefix_ref(atom_row[field], effective_archon)
+
         atom_rows.append(atom_row)
 
     if audit:
@@ -339,14 +451,16 @@ def convert_csv(
     chunk_size: int = 0,
     audit: bool = False,
     identifier_mode: str = "full",
+    prefix_archon: bool = False,
+    archon_code: Optional[str] = None,
+    repository_slug: Optional[str] = None,
 ) -> None:
     """Read a CALM CSV export and convert it to an AtoM-compatible CSV.
 
     Thin wrapper: delegates parsing to readers.csv_reader and mapping to
-    convert_rows. Public signature unchanged for backwards compatibility.
+    convert_rows. Existing signature preserved for backwards compatibility;
+    the three Archon-related kwargs are optional additions.
     """
-    # Local import keeps `readers` optional at import time and avoids any
-    # risk of circular imports if a reader ever needs core helpers.
     from readers.csv_reader import read_calm_csv
 
     try:
@@ -364,4 +478,49 @@ def convert_csv(
         audit=audit,
         identifier_mode=identifier_mode,
         metadata=metadata,
+        prefix_archon=prefix_archon,
+        archon_code=archon_code,
+        repository_slug=repository_slug,
+    )
+
+
+def convert_xml(
+    input_path: str,
+    output_path: str,
+    mapping: Union[Dict[str, str], str, None] = None,
+    atom_version: str = "2.8",
+    chunk_size: int = 0,
+    audit: bool = False,
+    identifier_mode: str = "full",
+    prefix_archon: bool = False,
+    archon_code: Optional[str] = None,
+    repository_slug: Optional[str] = None,
+) -> None:
+    """Read a CALM DSCribe XML export and convert it to an AtoM-compatible CSV.
+
+    Symmetric to convert_csv but reads via readers.xml_reader. The Archon code
+    embedded in the XML (from <CountryCode> + <RepositoryCode>) is passed
+    through in metadata and used by convert_rows unless overridden by
+    --archon-code / --repository-slug on the CLI.
+    """
+    from readers.xml_reader import read_calm_xml
+
+    try:
+        calm_rows, metadata = read_calm_xml(input_path)
+    except Exception as e:
+        logging.error(f"Failed to read input XML: {e}")
+        return
+
+    convert_rows(
+        calm_rows,
+        output_path,
+        mapping=mapping,
+        atom_version=atom_version,
+        chunk_size=chunk_size,
+        audit=audit,
+        identifier_mode=identifier_mode,
+        metadata=metadata,
+        prefix_archon=prefix_archon,
+        archon_code=archon_code,
+        repository_slug=repository_slug,
     )
