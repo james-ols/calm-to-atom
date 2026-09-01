@@ -33,3 +33,19 @@ htmlcov/
 
 # Local data — never commit real archive exports
 *.csv
+
+# --- Customer data (never commit) -----------------------------------------
+# Everything under customers/ is treated as private customer material.
+# We only allow-list a couple of scaffolding files so the folder can exist
+# in git without leaking any payload.
+/customers/**
+!/customers/
+!/customers/.gitkeep
+!/customers/README.md
+
+# Belt-and-braces: block common raw export formats anywhere in the tree,
+# except the curated public samples under examples/.
+*.xml
+*.dscribe
+!examples/*.xml
+!examples/*.dscribe
