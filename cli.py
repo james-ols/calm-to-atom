@@ -97,7 +97,7 @@ def main():
     parser.add_argument(
         "--repository-slug",
         help=(
-            "AtoM repository slug (e.g. 'gb-166' or 'shropshire-archives'). "
+            "AtoM repository slug (e.g. 'gb-123'). "
             "Overrides the slug otherwise derived from the Archon code."
         )
     )

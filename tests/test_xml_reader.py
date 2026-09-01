@@ -2,7 +2,7 @@
 
 The fixtures embed small, deliberately-crafted DSCribe XML snippets in the
 tests themselves (via tmp_path). That keeps this file self-contained and
-avoids depending on the private customer data under customers/shropshire/.
+avoids depending on the private customer data under customers/a_customer/.
 
 Each test targets one specific behaviour of the reader so a failure gives
 a clear signal about what regressed.
@@ -35,8 +35,8 @@ def _write(tmp_path: Path, name: str, contents: str) -> str:
 # Structural parsing
 # ---------------------------------------------------------------------------
 
-def test_basic_shropshire_shape(tmp_path):
-    """A minimal Shropshire-flavoured XML parses into the expected rows and
+def test_basic_xml_shape(tmp_path):
+    """A minimal DScribe XML parses into the expected rows and
     picks up the Archon code and database name."""
     path = _write(tmp_path, "cca.xml", """\
         <?xml version="1.0" encoding="UTF-8" ?>
@@ -45,17 +45,17 @@ def test_basic_shropshire_shape(tmp_path):
             <DScribeRecord>
                 <RefNo>XBCB</RefNo>
                 <AltRefNo>BCB</AltRefNo>
-                <Title>Bishop's Castle Borough Collection</Title>
+                <Title>Example Borough Collection</Title>
                 <Level>Collection</Level>
-                <Repository>Shropshire Archives</Repository>
+                <Repository>Example Archives</Repository>
                 <CountryCode>GB</CountryCode>
-                <RepositoryCode>166</RepositoryCode>
+                <RepositoryCode>123</RepositoryCode>
             </DScribeRecord>
             <DScribeRecord>
                 <RefNo>XBCB/A</RefNo>
                 <Title>Charters</Title>
                 <Level>Section</Level>
-                <Repository>Shropshire Archives</Repository>
+                <Repository>Example Archives</Repository>
             </DScribeRecord>
         </DScribeDatabase>
     """)
@@ -63,14 +63,15 @@ def test_basic_shropshire_shape(tmp_path):
     rows, metadata = read_calm_xml(path)
 
     assert metadata == {
-        "archon_code": "GB 166",
+        "archon_code": "GB 123",
         "database_name": "Catalog",
         "record_count": 2,
     }
     assert rows[0]["RefNo"] == "XBCB"
-    assert rows[0]["Title"] == "Bishop's Castle Borough Collection"
+    assert rows[0]["Title"] == "Example Borough Collection"
     assert rows[1]["RefNo"] == "XBCB/A"
     assert rows[1]["Level"] == "Section"
+
 
 
 def test_empty_elements_are_dropped(tmp_path):
@@ -105,8 +106,7 @@ def test_empty_elements_are_dropped(tmp_path):
 
 def test_whitespace_and_newlines_stripped(tmp_path):
     """CALM's <RCN> field often carries trailing whitespace and newlines
-    (real-world quirk from the Shropshire exports). Values must be
-    stripped."""
+    (a real-world quirk seen in DSCribe exports). Values must be stripped."""
     path = _write(tmp_path, "rcn.xml", """\
         <?xml version="1.0" encoding="UTF-8" ?>
         <DScribeDatabase Name="Catalog">
@@ -132,8 +132,8 @@ def test_repeated_elements_concatenated(tmp_path):
         <DScribeDatabase Name="Catalog">
             <DScribeRecord>
                 <RefNo>XBCB</RefNo>
-                <CreatorName>Bishop's Castle Corporation</CreatorName>
-                <CreatorName>Bishop's Castle Town Council</CreatorName>
+                <CreatorName>Example Corporation</CreatorName>
+                <CreatorName>Example Town Council</CreatorName>
             </DScribeRecord>
         </DScribeDatabase>
     """)
@@ -141,7 +141,7 @@ def test_repeated_elements_concatenated(tmp_path):
     rows, _ = read_calm_xml(path)
 
     assert rows[0]["CreatorName"] == (
-        "Bishop's Castle Corporation\n\nBishop's Castle Town Council"
+        "Example Corporation\n\nExample Town Council"
     )
 
 
@@ -157,15 +157,14 @@ def test_builtin_apos_entity_resolves(tmp_path):
         <DScribeDatabase Name="Catalog">
             <DScribeRecord>
                 <RefNo>XBCB</RefNo>
-                <Title>Bishop&apos;s Castle Borough Collection</Title>
+                <Title>St Mary&apos;s Parish Records</Title>
             </DScribeRecord>
         </DScribeDatabase>
     """)
 
     rows, _ = read_calm_xml(path)
 
-    assert rows[0]["Title"] == "Bishop's Castle Borough Collection"
-
+    assert rows[0]["Title"] == "St Mary's Parish Records"
 
 def test_dtd_entity_pound_resolves(tmp_path):
     """DTD-declared entities like &pound; must resolve to correct Unicode
@@ -209,12 +208,12 @@ def test_archon_code_from_first_populated_record():
     rows = [
         {"RefNo": "XBCB/A/1"},                          # neither → skip
         {"CountryCode": "GB"},                          # missing repo → skip
-        {"RepositoryCode": "166"},                      # missing country → skip
-        {"CountryCode": "GB", "RepositoryCode": "166"}, # ← this one
+        {"RepositoryCode": "123"},                      # missing country → skip
+        {"CountryCode": "GB", "RepositoryCode": "123"}, # ← this one
         {"CountryCode": "GB", "RepositoryCode": "999"}, # earlier match wins
     ]
 
-    assert _extract_archon_code(rows) == "GB 166"
+    assert _extract_archon_code(rows) == "GB 123"
 
 
 def test_archon_code_absent_returns_none():

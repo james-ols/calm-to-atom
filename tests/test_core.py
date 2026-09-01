@@ -199,15 +199,15 @@ def test_repository_slug_override_wins(tmp_path):
         str(input_csv),
         str(output_csv),
         atom_version="2.10",
-        archon_code="GB 166",
-        repository_slug="shropshire-archives",  # explicit override
+        archon_code="GB 123",
+        repository_slug="some-archive",  # explicit override
     )
 
     with open(output_csv, "r", encoding="utf-8") as f:
         row = next(csv.DictReader(f))
 
     # Slug must be the explicit override, NOT the derived 'gb-166'.
-    assert row["repository"] == "shropshire-archives"
+    assert row["repository"] == "some-archive"
 
 
 def test_no_repository_features_no_behaviour_change(tmp_path):
@@ -334,7 +334,7 @@ def test_culture_override_via_argument(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Duplicate-legacyId detection (real-world Shropshire data quality issue)
+# Duplicate-legacyId detection (real-world data quality issues)
 # ---------------------------------------------------------------------------
 
 def test_audit_reports_duplicate_legacy_ids(tmp_path, caplog):
@@ -343,7 +343,7 @@ def test_audit_reports_duplicate_legacy_ids(tmp_path, caplog):
     count. Without this, AtoM's csv:import silently misclassifies the
     second occurrence as a translation row and crashes on a duplicate-
     PK collision in information_object_i18n — an obtuse failure mode we
-    hit on the real Shropshire (GB 166) import at row 451."""
+    hit on with a customer import."""
     from core import convert_csv
     import csv
     import logging

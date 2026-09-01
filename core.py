@@ -155,17 +155,14 @@ def extract_leaf_identifier(val: str) -> str:
 # ---------------------------------------------------------------------------
 # Archon (repository) code handling
 #
-# UK archives are registered in TNA's Archon Directory with codes like
-# 'GB 166' (Shropshire Archives). ISAD(G) 3.1.1 wants the country and
-# repository codes as a prefix on the reference code, i.e. 'GB 166 XBCB/A/1'
+# UK archives are registered in TNA's Archon Directory. ISAD(G) 3.1.1 wants the country and
+# repository codes as a prefix on the reference code, i.e. 'GB 123 XBCB/A/1'
 # instead of the bare 'XBCB/A/1'. When --prefix-archon is passed on the CLI,
 # we prepend the code to every identifier and legacyId at write time so
 # hierarchy resolution (which is calculated against the RAW RefNos) stays
 # intact.
 #
-# The fallback code 'GB 000' is deliberately invalid (no archive is
-# registered under 000) so it stands out as "please supply a real code"
-# rather than silently producing plausible-looking data.
+# The fallback code 'GB 000' is deliberately invalid.
 # ---------------------------------------------------------------------------
 ARCHON_FALLBACK = "GB 000"
 
@@ -348,8 +345,8 @@ def convert_rows(
                           no code can be resolved from CLI or metadata.
     :param archon_code: Explicit Archon code (e.g. 'GB 166'). Overrides
                         anything found in metadata.
-    :param repository_slug: Explicit AtoM repository slug (e.g. 'gb-166' or
-                            'shropshire-archives'). Overrides anything
+    :param repository_slug: Explicit AtoM repository slug (e.g. 'gb-123' or
+                            'some-archive'). Overrides anything
                             derived from the Archon code.
     """
     resolved_mapping = _resolve_mapping(mapping)
