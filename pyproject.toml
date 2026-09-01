@@ -36,3 +36,4 @@ calm2atom = "cli:main"
 
 [tool.setuptools]
 py-modules = ["core", "cli", "authorities", "web_app"]
+packages = ["readers"]

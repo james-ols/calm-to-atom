@@ -156,91 +156,126 @@ def audit_data(rows: List[Dict], target_headers: List[str]) -> bool:
     logging.info("--- RUNNING PRE-FLIGHT AUDIT ---")
     errors = 0
     warnings = 0
-    
+
     legacy_ids = {r.get("legacyId") for r in rows if r.get("legacyId")}
-    
+
     for idx, row in enumerate(rows, start=2): # +2 for header and 1-index
         ref = row.get("legacyId", f"Row {idx}")
-        
+
         # 1. Check for orphans
         parent_id = row.get("parentId")
         if parent_id and parent_id not in legacy_ids:
             logging.error(f"[{ref}] ORPHAN RECORD: parentId '{parent_id}' does not exist in the dataset.")
             errors += 1
-            
+
         # 2. Check for required ISAD(G) fields (title or identifier)
         if not row.get("title") and not row.get("identifier"):
             logging.error(f"[{ref}] MISSING REQUIRED FIELD: AtoM requires either a 'title' or 'identifier'.")
             errors += 1
-            
+
         # 3. Check Date validity (very basic warning)
         event_dates = row.get("eventDates", "")
         if event_dates and len(event_dates) > 50:
             logging.warning(f"[{ref}] UNUSUAL DATE: 'eventDates' is very long, consider cleaning: {event_dates[:30]}...")
             warnings += 1
-            
+
     logging.info(f"--- AUDIT COMPLETE: {errors} Errors, {warnings} Warnings ---")
     if errors > 0:
         logging.error("Audit failed. Fix errors before importing to AtoM to prevent silently dropped records.")
         return False
     return True
 
-def convert_csv(input_path: str, output_path: str, mapping: Union[Dict[str, str], str, None] = None, atom_version: str = "2.8", chunk_size: int = 0, audit: bool = False, identifier_mode: str = "full") -> None:
+
+def _resolve_mapping(mapping: Union[Dict[str, str], str, None]) -> Optional[Dict[str, str]]:
+    """Turn the mapping argument (dict, JSON file path, or None) into a dict.
+
+    Returns None on failure (JSON load error) so callers can bail out early
+    matching the previous convert_csv behaviour.
+    """
     if mapping is None:
-        mapping = DEFAULT_MAPPING
-    elif isinstance(mapping, str):
-        # If mapping is a string, assume it's a file path to a JSON file
+        return DEFAULT_MAPPING
+    if isinstance(mapping, str):
         logging.info(f"Loading custom mapping from {mapping}")
         try:
-            with open(mapping, 'r', encoding='utf-8') as f:
-                mapping = json.load(f)
+            with open(mapping, "r", encoding="utf-8") as f:
+                return json.load(f)
         except Exception as e:
             logging.error(f"Failed to load custom mapping JSON: {e}")
-            return
+            return None
+    return mapping
+
+
+def convert_rows(
+    calm_rows: List[Dict[str, str]],
+    output_path: str,
+    mapping: Union[Dict[str, str], str, None] = None,
+    atom_version: str = "2.8",
+    chunk_size: int = 0,
+    audit: bool = False,
+    identifier_mode: str = "full",
+    metadata: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Convert already-parsed CALM rows to an AtoM-compatible CSV.
+
+    This is the source-agnostic half of the pipeline. It expects `calm_rows`
+    in the shape produced by any reader in the `readers` package: a list of
+    dicts keyed by CALM field name.
+
+    :param calm_rows: Parsed CALM records (from CSV, XML, …).
+    :param output_path: Destination path for the AtoM CSV.
+    :param mapping: Optional CALM → AtoM field mapping. May be a dict, a path
+                    to a JSON file, or None to use DEFAULT_MAPPING.
+    :param atom_version: Target AtoM CSV template version (see ATOM_VERSIONS).
+    :param chunk_size: If > 0, split output into files of this many rows.
+    :param audit: If True, run pre-flight validation before writing.
+    :param identifier_mode: 'full' (default) or 'leaf'.
+    :param metadata: Reader-supplied export metadata (currently unused here;
+                     reserved for Step 2's Archon-code handling).
+    """
+    resolved_mapping = _resolve_mapping(mapping)
+    if resolved_mapping is None:
+        # JSON load failed; the helper already logged the error.
+        return
+    mapping = resolved_mapping
 
     if atom_version not in ATOM_VERSIONS:
-        raise ValueError(f"Unsupported AtoM version: {atom_version}. Supported versions: {list(ATOM_VERSIONS.keys())}")
+        raise ValueError(
+            f"Unsupported AtoM version: {atom_version}. "
+            f"Supported versions: {list(ATOM_VERSIONS.keys())}"
+        )
+
+    if not calm_rows:
+        logging.warning("No rows found in input.")
+        return
 
     effective_version = resolve_version(atom_version)
     target_headers = ATOM_VERSIONS[atom_version]
-    logging.info(f"Reading CALM data from {input_path}")
-    
-    try:
-        with open(input_path, mode='r', encoding='utf-8-sig') as infile:
-            calm_rows = list(csv.DictReader(infile))
-    except Exception as e:
-        logging.error(f"Failed to read input CSV: {e}")
-        return
-        
-    if not calm_rows:
-        logging.warning("No rows found in input file.")
-        return
 
     all_legacy_ids = {row.get("RefNo").strip() for row in calm_rows if row.get("RefNo")}
 
     logging.info(f"Converting {len(calm_rows)} rows to AtoM {atom_version} format...")
     atom_rows = []
-    
+
     for row in tqdm(calm_rows, desc="Converting Rows"):
         atom_row = {col: "" for col in target_headers}
-        
+
         ref_no = row.get("RefNo", "").strip()
         if ref_no:
             atom_row["legacyId"] = ref_no
             parent_id = compute_parent_id(ref_no, all_legacy_ids)
             if parent_id:
                 atom_row["parentId"] = parent_id
-        
+
         # In AtoM >= 2.3, creators and dates are events. In AtoM 2.1 and below they are creators/creatorDates.
         if effective_version >= (2, 3):
             if row.get("Date") or row.get("CreatorName"):
                 atom_row["eventTypes"] = "Creation"
-        
+
         for calm_field, atom_field in mapping.items():
             val = row.get(calm_field, "").strip()
             if not val:
                 continue
-                
+
             # Adjust mappings for legacy AtoM versions (e.g. 2.1)
             if effective_version < (2, 3):
                 if atom_field == "eventActors":
@@ -250,47 +285,83 @@ def convert_csv(input_path: str, output_path: str, mapping: Union[Dict[str, str]
 
             if atom_field not in target_headers:
                 continue
-                
+
             if calm_field == "Level":
                 val = clean_level(val)
-                
+
             # Identifier mode logic
             if atom_field == "identifier" and identifier_mode == "leaf":
                 val = extract_leaf_identifier(val)
-                
+
             if atom_row[atom_field]:
                 atom_row[atom_field] += f"\n\n{val}"
             else:
                 atom_row[atom_field] = val
-                
+
         atom_rows.append(atom_row)
 
     if audit:
         audit_data(atom_rows, target_headers)
 
     out_path = Path(output_path)
-    
+
     if chunk_size > 0 and chunk_size < len(atom_rows):
         logging.info(f"Splitting output into chunks of {chunk_size} rows...")
         total_chunks = (len(atom_rows) + chunk_size - 1) // chunk_size
-        
+
         for i in range(total_chunks):
             start_idx = i * chunk_size
             end_idx = start_idx + chunk_size
             chunk_rows = atom_rows[start_idx:end_idx]
-            
+
             chunk_path = out_path.with_name(f"{out_path.stem}_part{i+1}{out_path.suffix}")
             logging.info(f"Writing chunk {i+1}/{total_chunks} to {chunk_path}")
-            
-            with open(chunk_path, mode='w', encoding='utf-8', newline='') as outfile:
+
+            with open(chunk_path, mode="w", encoding="utf-8", newline="") as outfile:
                 writer = csv.DictWriter(outfile, fieldnames=target_headers)
                 writer.writeheader()
                 writer.writerows(chunk_rows)
     else:
         logging.info(f"Writing {len(atom_rows)} rows to {output_path}")
-        with open(output_path, mode='w', encoding='utf-8', newline='') as outfile:
+        with open(output_path, mode="w", encoding="utf-8", newline="") as outfile:
             writer = csv.DictWriter(outfile, fieldnames=target_headers)
             writer.writeheader()
             writer.writerows(atom_rows)
-        
+
     logging.info(f"Conversion complete for AtoM {atom_version}!")
+
+
+def convert_csv(
+    input_path: str,
+    output_path: str,
+    mapping: Union[Dict[str, str], str, None] = None,
+    atom_version: str = "2.8",
+    chunk_size: int = 0,
+    audit: bool = False,
+    identifier_mode: str = "full",
+) -> None:
+    """Read a CALM CSV export and convert it to an AtoM-compatible CSV.
+
+    Thin wrapper: delegates parsing to readers.csv_reader and mapping to
+    convert_rows. Public signature unchanged for backwards compatibility.
+    """
+    # Local import keeps `readers` optional at import time and avoids any
+    # risk of circular imports if a reader ever needs core helpers.
+    from readers.csv_reader import read_calm_csv
+
+    try:
+        calm_rows, metadata = read_calm_csv(input_path)
+    except Exception as e:
+        logging.error(f"Failed to read input CSV: {e}")
+        return
+
+    convert_rows(
+        calm_rows,
+        output_path,
+        mapping=mapping,
+        atom_version=atom_version,
+        chunk_size=chunk_size,
+        audit=audit,
+        identifier_mode=identifier_mode,
+        metadata=metadata,
+    )
