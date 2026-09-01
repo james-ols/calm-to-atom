@@ -98,6 +98,19 @@ The core conversion helpers (`resolve_version`, `extract_leaf_identifier`, `comp
 `clean_level`) are unit-tested in `tests/test_core.py` against the shipping code, so regressions in
 the hierarchy/identifier logic are caught in CI across Python 3.8–3.12.
 
+## DScribe XML support with Archon Code
+Using Orangeleaf Systems customer records as examples, and requring a local /customer/customer_name/input and /customer/customer_name/output directory,
+With DScribe XML records, use (with appropriate ARCHON code): 
+```bash
+              python cli.py customers/customer_name/input/CALM.xml \
+              customers/customer_name/output/atom.csv \
+              --atom-version 2.10 \
+              --prefix-archon --archon-code "GB 000" \
+              --chunk-size 500 \
+              --audit \
+              --verbose
+```
+
 ## Contributing
 
 Issues and pull requests are welcome — especially additional CALM field mappings from real
