@@ -11,7 +11,7 @@ returns a normalised `(rows, metadata)` tuple:
 
     metadata:  Dict[str, Any]         — export-level information that isn't
                                        tied to any single record. Keys:
-                                         'archon_code'   : Optional[str]   e.g. 'GB 166'
+                                         'archon_code'   : Optional[str]   e.g. 'GB 123'
                                          'database_name' : Optional[str]   e.g. 'Catalog'
                                          'record_count'  : int
 
@@ -20,5 +20,6 @@ which format the data originally came from.
 """
 
 from readers.csv_reader import read_calm_csv
+from readers.xml_reader import read_calm_xml
 
-__all__ = ["read_calm_csv"]
+__all__ = ["read_calm_csv", "read_calm_xml"]
