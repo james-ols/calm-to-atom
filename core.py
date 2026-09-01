@@ -326,6 +326,7 @@ def convert_rows(
     archon_code: Optional[str] = None,
     repository_slug: Optional[str] = None,
     culture: str = "en",
+    dedupe_legacy_ids: Optional[str] = None,
 ) -> None:
     """Convert already-parsed CALM rows to an AtoM-compatible CSV.
 
@@ -366,6 +367,23 @@ def convert_rows(
     if not calm_rows:
         logging.warning("No rows found in input.")
         return
+
+    # Optional dedupe: keep first occurrence of each RefNo, drop later ones.
+    if dedupe_legacy_ids == "first-wins":
+        seen = set()
+        deduped = []
+        dropped = 0
+        for row in calm_rows:
+            ref = (row.get("RefNo") or "").strip()
+            if ref and ref in seen:
+                dropped += 1
+                continue
+            if ref:
+                seen.add(ref)
+            deduped.append(row)
+        if dropped:
+            logging.warning("Deduplication dropped %d duplicate RefNo row(s).", dropped)
+        calm_rows = deduped
 
     effective_version = resolve_version(atom_version)
     target_headers = ATOM_VERSIONS[atom_version]
@@ -455,7 +473,9 @@ def convert_rows(
         atom_rows.append(atom_row)
 
     if audit:
-        audit_data(atom_rows, target_headers)
+        if not audit_data(atom_rows, target_headers):
+            logging.error("Audit failed — CSV not written.")
+            return
 
     out_path = Path(output_path)
 
@@ -497,6 +517,7 @@ def convert_csv(
     archon_code: Optional[str] = None,
     repository_slug: Optional[str] = None,
     culture: str = "en",
+    dedupe_legacy_ids: Optional[str] = None,
 ) -> None:
     """Read a CALM CSV export and convert it to an AtoM-compatible CSV.
 
@@ -525,6 +546,7 @@ def convert_csv(
         archon_code=archon_code,
         repository_slug=repository_slug,
         culture=culture,
+        dedupe_legacy_ids=dedupe_legacy_ids,
     )
 
 
@@ -540,6 +562,7 @@ def convert_xml(
     archon_code: Optional[str] = None,
     repository_slug: Optional[str] = None,
     culture: str = "en",
+    dedupe_legacy_ids: Optional[str] = None,
 ) -> None:
     """Read a CALM DSCribe XML export and convert it to an AtoM-compatible CSV.
 
@@ -569,4 +592,5 @@ def convert_xml(
         archon_code=archon_code,
         repository_slug=repository_slug,
         culture=culture,
+        dedupe_legacy_ids=dedupe_legacy_ids,
     )

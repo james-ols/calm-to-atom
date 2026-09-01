@@ -115,6 +115,13 @@ def main():
     )
 
     parser.add_argument(
+        "--dedupe-legacy-ids",
+        choices=["first-wins"],
+        default=None,
+        help="Drop CALM records with duplicate RefNos. 'first-wins' keeps the first, drops the rest."
+    )
+
+    parser.add_argument(
         "-v", "--verbose",
         action="store_true",
         help="Enable verbose logging"
@@ -141,6 +148,7 @@ def main():
                     archon_code=args.archon_code,
                     repository_slug=args.repository_slug,
                     culture=args.culture,
+                    dedupe_legacy_ids=args.dedupe_legacy_ids,
                 )
             else:
                 convert_csv(
@@ -155,6 +163,7 @@ def main():
                     archon_code=args.archon_code,
                     repository_slug=args.repository_slug,
                     culture=args.culture,
+                    dedupe_legacy_ids=args.dedupe_legacy_ids,
                 )
         elif args.type == "isaar":
             # ISAAR (authority) path — XML support to be added in Step 4.
