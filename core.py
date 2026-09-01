@@ -234,6 +234,40 @@ def audit_data(rows: List[Dict], target_headers: List[str]) -> bool:
 
     legacy_ids = {r.get("legacyId") for r in rows if r.get("legacyId")}
 
+    # Detect duplicate legacyIds up front — AtoM's csv:import treats a
+    # second occurrence of the same legacyId as a "translation row" for
+    # the first, which is almost never what the source data means. In
+    # practice it also crashes the import at the second occurrence with
+    # a Duplicate entry '<id>-<culture>' PRIMARY KEY error on the
+    # information_object_i18n table. Report every offending legacyId
+    # once with a count, rather than logging one error per subsequent
+    # occurrence.
+    from collections import Counter
+    id_counts = Counter(r["legacyId"] for r in rows if r.get("legacyId"))
+    duplicate_ids = {lid: n for lid, n in id_counts.items() if n > 1}
+    if duplicate_ids:
+        logging.error(
+            "DUPLICATE legacyId: %d distinct value(s) appear more than once "
+            "in the CSV (%d duplicate rows in total). AtoM's importer will "
+            "misclassify the second and subsequent occurrences as translation "
+            "rows and crash on the primary-key collision in "
+            "information_object_i18n. This usually means the source CALM "
+            "data has repeated RefNos — investigate at source, or use a "
+            "dedupe strategy before importing.",
+            len(duplicate_ids),
+            sum(duplicate_ids.values()) - len(duplicate_ids),
+        )
+        # Log the first 20 offenders so the archivist can see the pattern
+        # without drowning in output on badly-corrupted exports.
+        for lid, n in list(duplicate_ids.items())[:20]:
+            logging.error("  duplicate: %r appears %d times", lid, n)
+        if len(duplicate_ids) > 20:
+            logging.error(
+                "  ... and %d more; see the full CSV for the rest.",
+                len(duplicate_ids) - 20,
+            )
+        errors += len(duplicate_ids)
+
     for idx, row in enumerate(rows, start=2): # +2 for header and 1-index
         ref = row.get("legacyId", f"Row {idx}")
 
@@ -291,6 +325,7 @@ def convert_rows(
     prefix_archon: bool = False,
     archon_code: Optional[str] = None,
     repository_slug: Optional[str] = None,
+    culture: str = "en",
 ) -> None:
     """Convert already-parsed CALM rows to an AtoM-compatible CSV.
 
@@ -405,6 +440,13 @@ def convert_rows(
         if effective_slug and "repository" in target_headers:
             atom_row["repository"] = effective_slug
 
+        # AtoM's information_object_i18n table requires 'culture' on every
+        # row. Set it here (a) so imports don't fail with a NOT NULL SQL
+        # error, and (b) so AtoM's translation-row detection heuristic
+        # doesn't mistakenly classify our main rows as translation rows.
+        if culture and "culture" in target_headers and not atom_row.get("culture"):
+            atom_row["culture"] = culture
+
         if prefix_archon and effective_archon:
             for field in ("legacyId", "identifier", "parentId"):
                 if field in atom_row and atom_row[field]:
@@ -454,6 +496,7 @@ def convert_csv(
     prefix_archon: bool = False,
     archon_code: Optional[str] = None,
     repository_slug: Optional[str] = None,
+    culture: str = "en",
 ) -> None:
     """Read a CALM CSV export and convert it to an AtoM-compatible CSV.
 
@@ -481,6 +524,7 @@ def convert_csv(
         prefix_archon=prefix_archon,
         archon_code=archon_code,
         repository_slug=repository_slug,
+        culture=culture,
     )
 
 
@@ -495,6 +539,7 @@ def convert_xml(
     prefix_archon: bool = False,
     archon_code: Optional[str] = None,
     repository_slug: Optional[str] = None,
+    culture: str = "en",
 ) -> None:
     """Read a CALM DSCribe XML export and convert it to an AtoM-compatible CSV.
 
@@ -523,4 +568,5 @@ def convert_xml(
         prefix_archon=prefix_archon,
         archon_code=archon_code,
         repository_slug=repository_slug,
+        culture=culture,
     )

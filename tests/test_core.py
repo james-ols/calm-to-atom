@@ -279,3 +279,135 @@ def test_xml_archon_from_metadata_is_used(tmp_path):
     assert rows[1]["legacyId"] == "GB 166 XBCB/A"
     assert rows[1]["parentId"] == "GB 166 XBCB"
     assert rows[0]["repository"] == "gb-166"
+
+    # ---------------------------------------------------------------------------
+# Culture handling (AtoM information_object_i18n NOT NULL requirement)
+# ---------------------------------------------------------------------------
+
+def test_culture_defaults_to_en_on_every_row(tmp_path):
+    """Every output row must have a 'culture' value set. AtoM's
+    information_object_i18n table requires it (NOT NULL), and leaving
+    it blank both fails the SQL insert and confuses AtoM's
+    translation-row detection heuristic."""
+    from core import convert_csv
+    import csv
+
+    input_csv = tmp_path / "calm.csv"
+    with open(input_csv, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["RefNo", "Title"])
+        writer.writeheader()
+        writer.writerow({"RefNo": "XBCB",   "Title": "Fonds"})
+        writer.writerow({"RefNo": "XBCB/A", "Title": "Series"})
+
+    output_csv = tmp_path / "atom.csv"
+    convert_csv(str(input_csv), str(output_csv), atom_version="2.10")
+
+    with open(output_csv, "r", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+
+    for row in rows:
+        assert row["culture"] == "en", (
+            f"row {row['legacyId']!r} has empty/wrong culture: "
+            f"{row['culture']!r}"
+        )
+
+
+def test_culture_override_via_argument(tmp_path):
+    """The --culture flag must set the value on every output row."""
+    from core import convert_csv
+    import csv
+
+    input_csv = tmp_path / "calm.csv"
+    with open(input_csv, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["RefNo", "Title"])
+        writer.writeheader()
+        writer.writerow({"RefNo": "XBCB", "Title": "Fonds"})
+
+    output_csv = tmp_path / "atom.csv"
+    convert_csv(str(input_csv), str(output_csv),
+                atom_version="2.10", culture="cy")
+
+    with open(output_csv, "r", encoding="utf-8") as f:
+        row = next(csv.DictReader(f))
+
+    assert row["culture"] == "cy"
+
+
+# ---------------------------------------------------------------------------
+# Duplicate-legacyId detection (real-world Shropshire data quality issue)
+# ---------------------------------------------------------------------------
+
+def test_audit_reports_duplicate_legacy_ids(tmp_path, caplog):
+    """When the input CALM data contains repeated RefNos, audit_data must
+    log an ERROR that names each offending legacyId with its occurrence
+    count. Without this, AtoM's csv:import silently misclassifies the
+    second occurrence as a translation row and crashes on a duplicate-
+    PK collision in information_object_i18n — an obtuse failure mode we
+    hit on the real Shropshire (GB 166) import at row 451."""
+    from core import convert_csv
+    import csv
+    import logging
+
+    input_csv = tmp_path / "calm.csv"
+    with open(input_csv, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["RefNo", "Title"])
+        writer.writeheader()
+        writer.writerow({"RefNo": "XBCB",      "Title": "Fonds"})
+        writer.writerow({"RefNo": "XBCB/A",    "Title": "Series"})
+        writer.writerow({"RefNo": "XBCB/A/1",  "Title": "First"})
+        writer.writerow({"RefNo": "XBCB/A/1",  "Title": "Duplicate of first"})
+        writer.writerow({"RefNo": "XBCB/A/2",  "Title": "Second"})
+        writer.writerow({"RefNo": "XBCB/A/2",  "Title": "Duplicate of second"})
+
+    output_csv = tmp_path / "atom.csv"
+
+    with caplog.at_level(logging.ERROR):
+        convert_csv(
+            str(input_csv), str(output_csv),
+            atom_version="2.10", audit=True,
+        )
+
+    error_messages = [rec.message for rec in caplog.records
+                      if rec.levelno == logging.ERROR]
+
+    # Summary line names the count of distinct duplicates:
+    assert any("2 distinct value(s) appear more than once" in m
+               for m in error_messages), (
+        f"Expected summary of duplicate-legacyId count in errors, got: "
+        f"{error_messages}"
+    )
+    # And both offending legacyIds are individually named:
+    joined = "\n".join(error_messages)
+    assert "XBCB/A/1" in joined
+    assert "XBCB/A/2" in joined
+
+
+def test_audit_ignores_non_duplicate_legacy_ids(tmp_path, caplog):
+    """The duplicate check must not fire on a well-formed CSV — no
+    'DUPLICATE legacyId' error should appear when every legacyId is
+    unique. Regression guard for false positives."""
+    from core import convert_csv
+    import csv
+    import logging
+
+    input_csv = tmp_path / "calm.csv"
+    with open(input_csv, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["RefNo", "Title"])
+        writer.writeheader()
+        writer.writerow({"RefNo": "XBCB",     "Title": "Fonds"})
+        writer.writerow({"RefNo": "XBCB/A",   "Title": "Series"})
+        writer.writerow({"RefNo": "XBCB/A/1", "Title": "Item"})
+
+    output_csv = tmp_path / "atom.csv"
+
+    with caplog.at_level(logging.ERROR):
+        convert_csv(
+            str(input_csv), str(output_csv),
+            atom_version="2.10", audit=True,
+        )
+
+    for rec in caplog.records:
+        assert "DUPLICATE legacyId" not in rec.message, (
+            f"False positive: audit flagged duplicates in clean CSV: "
+            f"{rec.message}"
+        )

@@ -101,6 +101,19 @@ def main():
             "Overrides the slug otherwise derived from the Archon code."
         )
     )
+
+    parser.add_argument(
+        "--culture",
+        default="en",
+        help=(
+            "ISO 639-1 code for the LANGUAGE OF DESCRIPTION (not of the "
+            "material itself). Written to every output row's 'culture' "
+            "column. AtoM requires this on every information object row; "
+            "leaving it blank causes SQL errors and translation-row "
+            "misclassification at import. Default: 'en'."
+        )
+    )
+
     parser.add_argument(
         "-v", "--verbose",
         action="store_true",
@@ -127,6 +140,7 @@ def main():
                     prefix_archon=args.prefix_archon,
                     archon_code=args.archon_code,
                     repository_slug=args.repository_slug,
+                    culture=args.culture,
                 )
             else:
                 convert_csv(
@@ -140,6 +154,7 @@ def main():
                     prefix_archon=args.prefix_archon,
                     archon_code=args.archon_code,
                     repository_slug=args.repository_slug,
+                    culture=args.culture,
                 )
         elif args.type == "isaar":
             # ISAAR (authority) path — XML support to be added in Step 4.
